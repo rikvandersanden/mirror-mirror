@@ -4,7 +4,7 @@ from time import sleep
 
 MAX_BRIGHTNESS = 255
 brightness = 0.5
-NUMBER_OF_LEDS = 5
+NUMBER_OF_LEDS = 8
 
 class Controller:
    
@@ -28,40 +28,96 @@ class Controller:
             return rgb
         return (rgb[0] / sum(rgb), rgb[1]/sum(rgb), rgb[2]/sum(rgb))
 
+    def hue_to_rgb255(self, hue):
+        return self.to_255(self.normalize(colorsys.hsv_to_rgb(hue, 1.0, brightness)))
+
+    def hue_to_offset_rgb255(self, i, hue):
+        return self.to_255(self.normalize(colorsys.hsv_to_rgb(self.offset_hue(hue, self.offset * i), 1.0, brightness)))
+
+    def set_led_to_offset_rgb255(self, i, hue):
+        leds.set(i, self.hue_to_offset_rgb255(i, self.hue))
+
     def cycle(self):
         for i in range(NUMBER_OF_LEDS):
-            _rgb255 = self.to_255(self.normalize(colorsys.hsv_to_rgb(self.offset_hue(self.hue, self.offset * i), 1.0, brightness)))
-            leds.set(i, _rgb255)
-
+            self.set_led_to_offset_rgb255(i, self.hue)
+            
         self.hue = (self.hue + self.speed*self._speed_multiplier) % 1.0
         self.offset = (self.offset + self.drift) % 1.0
 
-class Controller2(Controller):
-
-    def __init__(self):
-        super().__init__()
-        self.hues = [0.0, 0.0, 0.0, 0.0]
-
-    def cycle(self):
+    def mirror_flow(self):
         for i in range(NUMBER_OF_LEDS):
-            _rgb255 = self.to_255(colorsys.hsv_to_rgb(self.hues[i], 1.0, 1.0))
-            leds.set(i, _rgb255)
-            delta_speed = i * self.offset
-            delta_hue = (self.speed - delta_speed) * self._speed_multiplier
-            self.hues[i] = (self.hues[i] + delta_hue) % 1.0
+            self.set_led_to_offset_rgb255(i, self.hue)
 
-        self.offset = (self.offset + self.drift) % 1.0
+    def i_am_familiar(self):
+        leds.partial_f()
+        for i in range(NUMBER_OF_LEDS):
+            leds.set(i, (0,0,0))
+        
+        leds.set(0, self.hue_to_rgb255(self.hue))
+        sleep(2)
 
-no_of_iterations = 255
+        for i in range(3):
+            leds.set(i, self.hue_to_rgb255(self.hue))
+
+        sleep(2)
+
+        leds.full_f()
+        for i in range(NUMBER_OF_LEDS):
+            leds.set(i, self.hue_to_rgb255(self.hue))
+
+        sleep(4)
+
+    def set_mirror_mode(self):
+        self.offset = 0.1
+        self.drift = 0.0001
+
+    def set_rainbow_mode(self):
+        self.offset = 0.1
+        self.drift = 0.0
+
+    def set_uniform_mode(self):
+        self.speed = 0.0
+        self.offset = 0.0
+        self.drift = 0.0
+
+no_of_iterations = 65536
 
 controller = Controller()
 offset = 0.1
-speed = 1.5
+speed = 2.0
 drift = 0.0001
 
 controller.speed = speed
 controller.offset = offset
 controller.drift = drift
 
-while 1 == 1: 
-    controller.cycle()
+for i in range(NUMBER_OF_LEDS):
+    for j in range(NUMBER_OF_LEDS):
+        if i==j:
+            leds.set(j, (128, 128, 128))
+        else:
+            leds.set(j, (0, 0, 0) )
+    sleep (0.2)
+
+while 1 == 1:
+    controller.set_uniform_mode()
+    for j in range(4):
+        controller.i_am_familiar() # uses sleep, so this is the actual number of iterations
+
+    controller.set_rainbow_mode()
+    controller.speed = 16.0
+    for i in range(255):
+        controller.cycle()
+
+    for i in range(NUMBER_OF_LEDS):
+        for j in range(NUMBER_OF_LEDS):
+            if i==j:
+                leds.set(j, controller.hue_to_rgb255(controller.hue))
+            else:
+                leds.set(j, (0,0,0))
+        sleep (0.2)
+
+    controller.speed = 2.0
+    controller.set_mirror_mode()
+    for i in range(255):
+        controller.cycle()

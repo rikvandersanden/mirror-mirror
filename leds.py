@@ -13,3 +13,5 @@ def set(led, rgb):
     for i in range(3):
         _pi.set_PWM_dutycycle(_pinout[index + i], rgb[i])
 
+def write(pin):
+    _pi.write(pin, 0)
